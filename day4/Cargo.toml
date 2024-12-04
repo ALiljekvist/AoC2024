@@ -1,0 +1,8 @@
+[package]
+name = "day4"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aoc_tools = { path = "../aoc_tools" }
+regex = "1.11.1"
