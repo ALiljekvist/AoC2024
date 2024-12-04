@@ -11,7 +11,7 @@ fn count_xmas(r: i32, c: i32, s: &HashMap<(i32, i32), char>) -> i64 {
     for dr in -1..2i32 {
         for dc in -1..2i32 {
             let new_word: String = (0..4).filter_map(|i| s.get(&(r+dr*i, c+dc*i))).collect();
-            if new_word == "XMAS" || new_word == "SAMX" {
+            if new_word == "XMAS" {
                 count += 1;
             }
         }
