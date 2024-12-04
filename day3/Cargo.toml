@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 aoc_tools = { path = "../aoc_tools" }
+regex = "1.11.1"

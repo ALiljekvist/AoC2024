@@ -1,45 +1,39 @@
-use std::fs::read_to_string;
+use std::{fs::read_to_string, iter::zip};
 
-fn perform_mul(s: &str) -> Option<i64> {
-    let parts: Vec<&str> = s.split(",").collect();
-    if parts.len() < 2 {
-        return None
-    }
-    let num1 = match parts[0].parse::<i64>() {
-        Ok(val) => {val}
-        Err(_) => {return None}
-    };
-    let num2 = match parts[1].parse::<i64>() {
-        Ok(val) => {val}
-        Err(_) => {return None}
-    };
-    Some(num1*num2)
+use regex::Regex;
+
+fn do_mul(s: &str) -> i64 {
+    let mul_re = Regex::new(r"mul\((-?\d+),(-?\d+)\)").unwrap();
+    mul_re.captures_iter(s)
+    .into_iter()
+    .map(|c| {
+        let (_, [num1, num2]) = c.extract();
+        num1.parse::<i64>().unwrap() * num2.parse::<i64>().unwrap()
+    })
+    .sum::<i64>()
 }
 
 fn main() {
     let memory = read_to_string("input.txt").unwrap();
-    let mut p1 = 0i64;
-    let mut p2 = 0i64;
-    let mut valid = true;
-    for part in memory.split("mul(").filter(|x| !x.is_empty()) {
-        if let Some(ind) = part.find(")") {
-            if let Some(res) = perform_mul(&part[..ind]) {
-                p1 += res;
-                if valid {
-                    p2 += res;
-                }
-            }
-        }
-        let dos: Vec<usize> = part.match_indices("do()").map(|x| x.0).collect();
-        let last_do = if dos.len() > 0 {dos[dos.len()-1]} else {0};
-        let donts: Vec<usize> = part.match_indices("don't()").map(|x| x.0).collect();
-        let last_dont = if donts.len() > 0 {donts[donts.len()-1]} else {0};
-        if last_do > last_dont {
-            valid = true;
-        } else if last_dont > last_do {
-            valid = false;
-        }
-    }
+    let p1 = do_mul(&memory);
     println!("part1: {}", p1);
+    // Setup a regex to find do's and dont's to be able to split the memory
+    // into pieces of valid and non-valid muls
+    let do_re = Regex::new(r"do\(\)|don't\(\)").unwrap();
+    // Pad the memory with break points on each end to encapsulate the ends
+    let padded_memory = format!("do(){}do()", &memory);
+    let breaks: Vec<(usize, bool)> = do_re.captures_iter(&padded_memory)
+        .into_iter()
+        .map(|cap| {
+            let m = cap.get(0).unwrap();
+            (m.start(), match m.as_str() {
+                "do()" => true,
+                _ => false,
+            })
+        })
+        .collect();
+    let p2 = zip(&breaks[0..], &breaks[1..])
+        .filter_map(|(b1, b2)| if b1.1 {Some(do_mul(&padded_memory[b1.0..b2.0]))} else {None})
+        .sum::<i64>();
     println!("part2: {}", p2);
 }
