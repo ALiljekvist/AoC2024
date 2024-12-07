@@ -49,19 +49,23 @@ impl Guard {
     }
 
     fn within(&self, bounds: (i64, i64)) -> bool {
-        return self.r >= 0  && self.r < bounds.0 && self.c >= 0  && self.c < bounds.1
+        return within((self.r, self.c), bounds)
     }
 
-    fn walk_until_done(&mut self, bounds: (i64, i64), obstacles: &HashSet<(i64, i64)>) -> bool {
+    fn walk_until_done(&mut self, bounds: (i64, i64), obstacles: &HashSet<(i64, i64)>, extra: (i64, i64)) -> bool {
         while self.within(bounds)
             && !self.hist.contains(&self.pos_dir()) {
             self.walk();
-            while obstacles.contains(&self.next()) {
+            while obstacles.contains(&self.next()) || self.next() == extra {
                 self.turn_right();
             }
         }
         return self.hist.contains(&self.pos_dir())
     }
+}
+
+fn within(pos: (i64, i64), bounds: (i64, i64)) -> bool {
+    return pos.0 >= 0  && pos.0 < bounds.0 && pos.1 >= 0  && pos.1 < bounds.1
 }
 
 fn main() {
@@ -85,27 +89,32 @@ fn main() {
             }
         }
     }
+    let org_pos = (guard.r, guard.c);
 
-    let mut p1_guard = guard.clone();
-    p1_guard.walk_until_done(bounds, &obstacles);
-    let visited: HashSet<(i64, i64)> = p1_guard.hist.iter().map(|x| (x.0, x.1)).collect();
+    let mut extra_obstacles: HashMap<(i64, i64), i64> = HashMap::new();
+    while guard.within(bounds) {
+        if obstacles.contains(&guard.next()) {
+            guard.turn_right();
+        }
+        if !extra_obstacles.contains_key(&guard.next())
+            && within(guard.next(), bounds)
+            && guard.next() != org_pos {
+            let new_obstacle = guard.next();
+            let mut shadow = guard.clone();
+            let mut spin_counter = 0;
+            while obstacles.contains(&shadow.next()) || shadow.next() == new_obstacle{
+                shadow.turn_right();
+                spin_counter += 1;
+                if spin_counter > 3 {
+                    break
+                }
+            }
+            extra_obstacles.insert(new_obstacle, if spin_counter < 4 && shadow.walk_until_done(bounds, &obstacles, new_obstacle) {1} else {0});
+        }
+        guard.walk();
+    }
+    
+    let visited: HashSet<(i64, i64)> = guard.hist.iter().map(|x| (x.0, x.1)).collect();
     println!("part1: {}", visited.len());
-
-    let loops = visited.iter()
-        .filter_map(|(r1, c1)| {
-            if *r1 == guard.r && *c1 == guard.c {
-                return None;
-            }
-            obstacles.insert((*r1, *c1));
-            let mut p2_guard = guard.clone();
-            let loops = p2_guard.walk_until_done(bounds, &obstacles);
-            obstacles.remove(&(*r1, *c1));
-            if loops {
-                Some(1)
-            } else {
-                None
-            }
-        })
-        .count();
-    println!("part2: {}", loops);
+    println!("part2: {}", extra_obstacles.values().into_iter().sum::<i64>());
 }
