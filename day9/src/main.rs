@@ -1,4 +1,4 @@
-use std::fs::read_to_string;
+use std::{fs::read_to_string, iter::zip};
 
 fn make_compact(memory: &mut Vec<i64>) {
     let (mut i, mut j) = (0, memory.len()-1);
@@ -17,18 +17,12 @@ fn make_compact(memory: &mut Vec<i64>) {
 
 fn make_compact_blockwise(
     memory: &mut Vec<i64>,
-    block: &(i64, usize, usize)) {
-    let mut slots: Vec<(usize, usize)> = Vec::new();
-    let mut i = (0, 0);
-    while i.0 < memory.len() {
-        let next = find_next_empty_block(i, memory);
-        slots.push(next);
-        i.0 = next.0 + next.1
-    }
-    // find all slots below the current block index and move the block if you can
-    for slot in slots.iter() {
+    block: &(i64, usize, usize),
+    slots: &mut Vec<(usize, usize)>) {
+    // Look through all slots and try to fill 
+    for slot in slots.iter_mut() {
         if block.1 < slot.0 {
-            continue;
+            return
         }
         if block.2 <= slot.1 {
             // Swap memory
@@ -36,21 +30,12 @@ fn make_compact_blockwise(
                 memory[slot.0+i] = block.0;
                 memory[block.1+i] = -1;
             }
+            // Update the refilled slot
+            slot.0 += block.2;
+            slot.1 -= block.2;
             return
         }
     }
-}
-
-fn find_next_empty_block(pos: (usize, usize), memory: &Vec<i64>) -> (usize, usize) {
-    let mut start = pos.0;
-    while start < memory.len() && memory[start] != -1 {
-        start += 1
-    }
-    let mut end = start+1;
-    while end < memory.len() && memory[end] == -1 {
-        end += 1
-    }
-    (start, end-start)
 }
 
 fn check_sum(memory: &Vec<i64>) -> i64 {
@@ -83,8 +68,13 @@ fn main() {
     let mut p1_memory = memory.clone();
     make_compact(&mut p1_memory);
     println!("part1: {}", check_sum(&p1_memory));
+    // Create a vector of all the slots for faster iteration
+    let mut slots: Vec<(usize, usize)> = zip(&blocks[0..], &blocks[1..]).into_iter()
+        .map(|(b1, b2)| (b1.1+b1.2, b2.1-b1.1-b1.2))
+        .filter(|x| x.1 != 0)
+        .collect();
     for block in blocks.iter().rev() {
-        make_compact_blockwise(&mut memory, block);
+        make_compact_blockwise(&mut memory, block, &mut slots);
     }
     println!("part2: {}", check_sum(&memory));
 }
