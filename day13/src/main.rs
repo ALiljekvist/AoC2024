@@ -1,5 +1,7 @@
 use std::fs::read_to_string;
 
+use aoc_tools::input::input::ints_from_str;
+
 #[derive(Debug, Clone)]
 struct Claw {
     a: (i64, i64),
@@ -21,44 +23,6 @@ impl Claw {
     }
 }
 
-fn ints_from_string(s: &str) -> Vec<i64> {
-    let mut ints: Vec<i64> = Vec::new();
-    let mut val: Option<i64> = None;
-    let mut neg = false;
-    for k in s.chars() {
-        if val == None {
-            if k == '-' {
-                neg = true;
-                continue;
-            }
-            if k.is_digit(10) {
-                val = Some(k.to_digit(10).unwrap() as i64);
-            }
-            continue;
-        }
-        if let Some(next_digit) = k.to_digit(10) {
-            val = Some(val.unwrap()*10 + next_digit as i64);
-            continue;
-        }
-        // non-digit with previous digits, add to vector and reset val
-        let mut mult = 1i64;
-        if neg {
-            mult = -1;
-        }
-        ints.push(mult * val.unwrap());
-        val = None;
-        neg = false;
-    }
-    if let Some(mag) = val {
-        let mut mult = 1i64;
-        if neg {
-            mult = -1;
-        }
-        ints.push(mult * mag);
-    }
-    ints
-}
-
 fn main() {
     let mut claws: Vec<Claw> = read_to_string("input.txt")
         .unwrap()
@@ -66,7 +30,7 @@ fn main() {
         .into_iter()
         .filter(|x| !x.is_empty())
         .map(|s| {
-            let vals = ints_from_string(s);
+            let vals = ints_from_str(s);
             Claw{a: (vals[0], vals[1]), b: (vals[2], vals[3]), prize: (vals[4], vals[5])}
         })
         .collect();

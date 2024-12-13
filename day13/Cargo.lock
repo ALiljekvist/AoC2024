@@ -3,5 +3,12 @@
 version = 4
 
 [[package]]
+name = "aoc_tools"
+version = "0.1.0"
+
+[[package]]
 name = "day13"
 version = "0.1.0"
+dependencies = [
+ "aoc_tools",
+]
