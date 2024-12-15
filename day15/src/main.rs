@@ -80,16 +80,11 @@ fn make_move(sub: &mut Submarine, map: Vec<Vec<char>>, delta: (i32, i32)) -> Vec
                 '#' => {
                     return map
                 }
-                // '.' => {
-                    // new_map[(pos.0+delta.0) as usize][(pos.1+delta.1) as usize] = map[pos.0 as usize][pos.1 as usize];
-                // }
                 'O' => {
-                    // new_map[(pos.0+delta.0) as usize][(pos.1+delta.1) as usize] = map[pos.0 as usize][pos.1 as usize];
                     next_pos.insert((pos.0+delta.0, pos.1+delta.1));
                 }
                 '[' => {
                     if delta.1 != 0 {
-                        // No special cases when moving sideways
                         next_pos.insert((pos.0+delta.0, pos.1+delta.1));
                     } else {
                         next_pos.insert((pos.0+delta.0, pos.1+delta.1));
