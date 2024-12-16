@@ -69,9 +69,6 @@ impl Reindeer {
             } else {
                 visited.insert(deer.pos_dir(), deer.score);
             }
-            if history.contains(&deer.pos_dir()) {
-                continue;
-            }
             history.insert(deer.pos_dir());
             let next = deer.next();
             if deer.end == next {
