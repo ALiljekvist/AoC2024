@@ -64,8 +64,6 @@ fn shortest_path(area_size: i64, byte_slice: &[(i64, i64)]) -> i64 {
             }
         }
     }
-    let last_coord = byte_slice[byte_slice.len()-1];
-    println!("part2: {},{}", last_coord.0, last_coord.1);
     -1
 }
 
@@ -77,14 +75,20 @@ fn main() {
             (coords[0], coords[1])
         })
         .collect();
-    let mut kb_size = 1024;
+    let kb_size = 1024;
     let area = 70;
     println!("part1: {}", shortest_path(area, &all_bytes[..kb_size]));
-    while kb_size < all_bytes.len() {
-        kb_size += 1;
-        let dist = shortest_path(area, &all_bytes[..kb_size]);
+    let mut lower = kb_size;
+    let mut higher = all_bytes.len();
+    while higher - lower > 1 {
+        let mid = lower + (higher-lower)/2;
+        let dist = shortest_path(area, &all_bytes[..mid]);
         if dist == -1 {
-            break
+            higher = mid;
+        } else {
+            lower = mid;
         }
     }
+    let final_pos = all_bytes[lower];
+    println!("part2: {},{}", final_pos.0, final_pos.1);
 }
