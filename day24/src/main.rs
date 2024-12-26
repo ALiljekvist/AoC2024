@@ -1,5 +1,19 @@
 use std::{collections::HashMap, fs::read_to_string};
 
+// struct Adder {
+//     c_in: Option<String>,
+//     xor_in: Option<String>,
+//     and_in: Option<String>,
+//     and_mid: Option<String>,
+//     xor_out: Option<String>
+// }
+
+// impl Adder {
+//     fn new() -> Self {
+//         Adder { c_in: None, xor_in: None, and_in: None, and_mid: None, xor_out: None }
+//     }
+// }
+
 fn parse_input(input: String) -> (HashMap<String, u8>, Vec<Vec<String>>) {
     let parts: Vec<String> = input.split("\n\n")
         .filter_map(|s| if !s.is_empty() {Some(s.to_string())} else {None})
@@ -81,32 +95,26 @@ fn calc_gate(
     };
 }
 
-// fn map_adder(gate: String, rev_map: &HashMap<String, (String, String, String)>, level: usize) -> String {
-//     if level == 0 {
-//         return gate
-//     }
-//     match gate.chars().nth(0).unwrap() {
-//         'x' => {return gate}
-//         'y' => {return gate}
-//         _ => {}
-//     }
-//     let (op, dep1, dep2) = rev_map.get(&gate).unwrap();
-//     let mut parts = vec![map_adder(dep1.clone(), rev_map, level-1), map_adder(dep2.clone(), rev_map, level-1)];
-//     parts.sort();
-//     format!("({} {} {})", parts[0], op, parts[1])
-// }
+fn find_input_count(gate: &String, rev_map: &HashMap<String, (String, String, String)>) -> (u8, u8, u8) {
+    let (mut a, mut x, mut o) = (0, 0, 0);
+    for (_, (op, d1, d2)) in rev_map.iter() {
+        if gate == d1 || gate == d2 {
+            match op.as_str() {
+                "AND" => {a += 1}
+                "XOR" => {x += 1}
+                "OR" => {o += 1}
+                _ => {}
+            }
+        }
+    }
+    (a, x, o)
+}
 
 fn main() {
     let input = read_to_string("input.txt").unwrap();
     let (gates, ops) = parse_input(input);
     // Part 1
     let all_gates: Vec<String> = ops.iter().map(|op| op[4].clone()).collect();
-    // let rev_map: HashMap<String, (String, String, String)> = ops.iter()
-    //     .map(|ps| {
-    //         all_gates.push(ps[4].clone());
-    //         (ps[4].clone(), (ps[1].clone(), ps[0].clone(), ps[2].clone()))
-    //     })
-    //     .collect();
     let rev_map = get_rev_map(&ops, &HashMap::new());
     let mut z_gates: Vec<String> = all_gates.iter()
         .filter_map(|s| if s.chars().nth(0).unwrap() == 'z' {Some(s.clone())} else {None})
@@ -116,10 +124,63 @@ fn main() {
     println!("part1: {}", from_binary(finish));
 
     // Part 2:
-    let wanted_bin = to_binary(get_binary_result(&gates, 'x') + get_binary_result(&gates, 'y'));
     // Realize that the input of earlier z-gates affect the later z-gates, which means
     // they should follow a pattern. Seems to be logic adders with a carry-over from
     // previous gates.
+
+    let mut sus: Vec<String> = Vec::new();
+    for (gate, (op, a, b)) in rev_map.iter() {
+        // We trust the first and last output gate (manually verified)
+        if gate == &z_gates[0] || gate == &z_gates[z_gates.len()-1] {
+            continue;
+        }
+        // Since the first gate does not have a carry-over bit, the pattern
+        // will not hold for first input gates. Skip those, manually verified.
+        if vec!["x00", "y00"].contains(&a.as_str()) {
+            continue;
+        }
+        // Check if it is an output, if so, the op should be "XOR" and a+b should be mapped
+        if gate.chars().nth(0).unwrap() == 'z' {
+            if op != "XOR" {
+                sus.push(gate.clone());
+                continue;
+            }
+            // Make sure the inputs are also in the map (i.e. not an input XOR)
+            if !rev_map.contains_key(a) || !rev_map.contains_key(b) {
+                sus.push(gate.clone());
+                continue;
+            }
+            continue;
+        }
+        let input_count = find_input_count(gate, &rev_map);
+        match op.as_str() {
+            "XOR" => {
+                // Should be read from input, check that it is used correctly
+                if input_count.0 != 1 && input_count.1 != 1 {
+                    sus.push(gate.clone());
+                }
+            }
+            "AND" => {
+                // Read from input or middle-layer before carry-over bit
+                if input_count.2 != 1 {
+                    sus.push(gate.clone());
+                }
+            }
+            "OR" => {
+                // Must be carry-over bit
+                if input_count.0 != 1 && input_count.1 != 1 {
+                    sus.push(gate.clone());
+                }
+                
+            }
+            _ => {panic!("WRONG OPERATION {}", op)}
+        }
+    }
+    sus.sort();
+    println!("part2: {}", sus.join(","));
+
+    // Could add checking pairs of swaps until we get a match. This check is still hard-coded from manual findings.
+    let wanted_bin = to_binary(get_binary_result(&gates, 'x') + get_binary_result(&gates, 'y'));
     let mut swaps: HashMap<String, String> = HashMap::new();
     for (p1, p2) in vec![("z05", "tst"), ("z11", "sps"), ("z23","frt"), ("cgh", "pmd")] {
         swaps.insert(p1.to_string(), p2.to_string());
@@ -131,23 +192,4 @@ fn main() {
     if (0..p2_finish.len()).map(|i| if p2_finish[i] != wanted_bin[i] {1} else {0}).sum::<i32>() > 0 {
         println!("Not correct");
     }
-
-    // Manually find pairs by printing the patterns and see where it doesn't match.
-    // Try to build the sum part of the adder for each z-gate, and print the parts.
-
-    // Uncomment to print what was used to manually search through the input.
-    // for gate in z_gates.iter() {
-    //     println!("{}: {}", gate, map_adder(gate.clone(), &new_rev_map, 2))
-    // }
-    // // Also check the dep-chain for all carry-overs (Should all have OR-operations)
-    // for (co, (op, _, _)) in new_rev_map.iter() {
-    //     if op != "OR" {
-    //         continue;
-    //     }
-    //     println!("{}: {}", co, map_adder(co.clone(), &new_rev_map, 2));
-    // }
-
-    let mut sorted_swaps: Vec<String> = swaps.keys().map(|s| s.clone()).collect();
-    sorted_swaps.sort();
-    println!("part2: {}", sorted_swaps.join(","));
 }
