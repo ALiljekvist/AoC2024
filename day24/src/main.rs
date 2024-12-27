@@ -1,19 +1,5 @@
 use std::{collections::HashMap, fs::read_to_string};
 
-// struct Adder {
-//     c_in: Option<String>,
-//     xor_in: Option<String>,
-//     and_in: Option<String>,
-//     and_mid: Option<String>,
-//     xor_out: Option<String>
-// }
-
-// impl Adder {
-//     fn new() -> Self {
-//         Adder { c_in: None, xor_in: None, and_in: None, and_mid: None, xor_out: None }
-//     }
-// }
-
 fn parse_input(input: String) -> (HashMap<String, u8>, Vec<Vec<String>>) {
     let parts: Vec<String> = input.split("\n\n")
         .filter_map(|s| if !s.is_empty() {Some(s.to_string())} else {None})
@@ -32,36 +18,10 @@ fn parse_input(input: String) -> (HashMap<String, u8>, Vec<Vec<String>>) {
     (gates, intstructions)
 }
 
-fn get_binary_result(gates: &HashMap<String, u8>, b: char) -> u64 {
-    let mut b_gates: Vec<String> = gates.keys().filter(|s| s.chars().nth(0).unwrap() == b).map(|s| s.clone()).collect();
-    b_gates.sort();
-    b_gates.iter()
-        .enumerate()
-        .map(|(i, gate)| *gates.get(gate).unwrap() as u64 * 2u64.pow(i as u32))
-        .sum::<u64>()
-}
-
-fn to_binary(a: u64) -> Vec<u8> {
-    let mut bins = Vec::new();
-    let mut i = 0;
-    while a > 2u64.pow(i as u32) {
-        bins.push(if a & 2u64.pow(i as u32) > 0 {1} else {0});
-        i += 1
-    }
-    bins
-}
-
-fn get_or_swap(a: String, swaps: &HashMap<String, String>) -> String {
-    match swaps.get(&a) {
-        Some(b) => {b.clone()}
-        None => {a}
-    }
-}
-
-fn get_rev_map(ops: &Vec<Vec<String>>, swaps: &HashMap<String, String>) -> HashMap<String, (String, String, String)> {
+fn get_rev_map(ops: &Vec<Vec<String>>) -> HashMap<String, (String, String, String)> {
     ops.iter()
         .map(|ps| {
-            (get_or_swap(ps[4].clone(), swaps), (ps[1].clone(), ps[0].clone(), ps[2].clone()))
+            (ps[4].clone(), (ps[1].clone(), ps[0].clone(), ps[2].clone()))
         })
         .collect()
 }
@@ -74,13 +34,20 @@ fn calc_gate(
     gate: &String,
     rev_map: &HashMap<String, (String, String, String)>,
     gates: &HashMap<String, u8>,
+    level: usize,
 ) -> u8 {
+    if level > 300 {
+        return 7
+    }
     if let Some(val) = gates.get(gate) {
         return *val
     }
-    let (op, dep1, dep2) = rev_map.get(gate).unwrap();
-    let a = calc_gate(dep1, rev_map, gates);
-    let b = calc_gate(dep2, rev_map, gates);
+    let (op, dep1, dep2) = match rev_map.get(gate) {
+        Some(ent) => {(&ent.0, &ent.1, &ent.2)}
+        None => {return 7}
+    };
+    let a = calc_gate(dep1, rev_map, gates, level + 1);
+    let b = calc_gate(dep2, rev_map, gates, level + 1);
     match op.as_str() {
         "AND" => {
             return if a + b == 2 {1} else {0};
@@ -115,12 +82,12 @@ fn main() {
     let (gates, ops) = parse_input(input);
     // Part 1
     let all_gates: Vec<String> = ops.iter().map(|op| op[4].clone()).collect();
-    let rev_map = get_rev_map(&ops, &HashMap::new());
+    let rev_map = get_rev_map(&ops);
     let mut z_gates: Vec<String> = all_gates.iter()
         .filter_map(|s| if s.chars().nth(0).unwrap() == 'z' {Some(s.clone())} else {None})
         .collect();
     z_gates.sort();
-    let finish: Vec<u8> = z_gates.iter().map(|gate| calc_gate(gate, &rev_map, &gates)).collect();
+    let finish: Vec<u8> = z_gates.iter().map(|gate| calc_gate(gate, &rev_map, &gates, 0)).collect();
     println!("part1: {}", from_binary(finish));
 
     // Part 2:
@@ -130,13 +97,22 @@ fn main() {
 
     let mut sus: Vec<String> = Vec::new();
     for (gate, (op, a, b)) in rev_map.iter() {
-        // We trust the first and last output gate (manually verified)
-        if gate == &z_gates[0] || gate == &z_gates[z_gates.len()-1] {
+        if gate == &z_gates[0] {
+            // Manually check first output
+            if op != "XOR" && (a != "x00" || a != "y00") && (b != "x00" || b != "y00") {
+                sus.push(gate.clone());
+            }
             continue;
         }
-        // Since the first gate does not have a carry-over bit, the pattern
-        // will not hold for first input gates. Skip those, manually verified.
-        if vec!["x00", "y00"].contains(&a.as_str()) {
+        if gate == &z_gates[z_gates.len()-1] {
+            // Manually check last output
+            if op == "OR" {
+                continue;
+            }
+            let input_count = find_input_count(gate, &rev_map);
+            if input_count.0 + input_count.1 + input_count.2 != 0 {
+                sus.push(gate.clone());
+            }
             continue;
         }
         // Check if it is an output, if so, the op should be "XOR" and a+b should be mapped
@@ -176,20 +152,11 @@ fn main() {
             _ => {panic!("WRONG OPERATION {}", op)}
         }
     }
+    if sus.len() != 8 {
+        println!("Did not find the correct amount of gates to swap ({} != 8)", sus.len());
+        return
+    }
+    // Sort and print the gates (no need to find which pairs should switch)
     sus.sort();
     println!("part2: {}", sus.join(","));
-
-    // Could add checking pairs of swaps until we get a match. This check is still hard-coded from manual findings.
-    let wanted_bin = to_binary(get_binary_result(&gates, 'x') + get_binary_result(&gates, 'y'));
-    let mut swaps: HashMap<String, String> = HashMap::new();
-    for (p1, p2) in vec![("z05", "tst"), ("z11", "sps"), ("z23","frt"), ("cgh", "pmd")] {
-        swaps.insert(p1.to_string(), p2.to_string());
-        swaps.insert(p2.to_string(), p1.to_string());
-    }
-    //  Create reverse map and check that the swaps made the logic work
-    let new_rev_map = get_rev_map(&ops, &swaps);
-    let p2_finish: Vec<u8> = z_gates.iter().map(|gate| calc_gate(gate, &new_rev_map, &gates)).collect();
-    if (0..p2_finish.len()).map(|i| if p2_finish[i] != wanted_bin[i] {1} else {0}).sum::<i32>() > 0 {
-        println!("Not correct");
-    }
 }
